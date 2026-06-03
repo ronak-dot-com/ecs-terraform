@@ -1,0 +1,48 @@
+name: ECS Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ap-south-1
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - name: Login ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build Image
+      run: |
+        docker build -t php-app .
+
+    - name: Tag Image
+      run: |
+        docker tag php-app:latest \
+        ${{ steps.login-ecr.outputs.registry }}/php-app:latest
+
+    - name: Push Image
+      run: |
+        docker push \
+        ${{ steps.login-ecr.outputs.registry }}/php-app:latest
+
+    - name: Force ECS Deployment
+      run: |
+        aws ecs update-service \
+        --cluster php-cluster \
+        --service php-service \
+        --force-new-deployment
